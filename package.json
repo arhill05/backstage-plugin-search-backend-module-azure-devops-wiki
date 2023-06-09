@@ -1,6 +1,6 @@
 {
   "name": "@mdude2314/backstage-plugin-search-backend-module-azure-devops-wiki",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "main": "src/index.ts",
   "license": "Apache-2.0",
   "dependencies": {
@@ -26,5 +26,9 @@
   },
   "scripts": {
     "test": "vitest"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "src/index.ts"
   }
 }
