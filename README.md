@@ -33,7 +33,7 @@ Configure the search plugin to use the pieces from this package:
 
 ```typescript
 // packages/backend/src/plugins/search.ts
-import { AzureDevOpsWikiArticleCollatorFactory } from 'c:/_workspaces/backstage-plugin-search-backend-module-azure-devops-wiki/src';
+import { AzureDevOpsWikiArticleCollatorFactory } from '@mdude2314/backstage-plugin-search-backend-module-azure-devops-wiki';
 
 ...
 
