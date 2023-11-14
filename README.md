@@ -23,10 +23,15 @@ Add the necessary configuration for this plugin to your app-config.yaml:
 azureDevOpsWikiCollator:
   baseUrl: https://my-azure-instance.com  # The URL of your Azure DevOps instance. Required
   token: ${AZURE_TOKEN}                   # The PAT used to authenticate to the Azure DevOps REST API. Required.
-  wikiIdentifier: Wiki-Identifier.wiki    # The identifier of the wiki. This can be found by looking at the URL of the wiki in ADO. It is typically something like '{nameOfWiki}.wiki'. Required.
-  organization: MyOrganization            # The name of the organization the wiki is contained in. Required.
-  project: MyProject                      # The name of the project the wiki is contained in. Required.
-  titleSuffix: " - My Suffix"             # A string to append to the title of articles to make them easier to identify as search results from the wiki. Optional
+  wikis:
+    - wikiIdentifier: Wiki-Identifier.wiki    # The identifier of the wiki. This can be found by looking at the URL of the wiki in ADO. It is typically something like '{nameOfWiki}.wiki'. Required.
+      organization: MyOrganization            # The name of the organization the wiki is contained in. Required.
+      project: MyProject                      # The name of the project the wiki is contained in. Required.
+      titleSuffix: " - My Suffix"             # A string to append to the title of articles to make them easier to identify as search results from the wiki. Optional
+    - wikiIdentifier: Wiki-Identifier2.wiki
+      organization: MyOrganization
+      project: MyProject
+      titleSuffix: " - Suffix 2"
 ```
 
 Configure the search plugin to use the pieces from this package:
