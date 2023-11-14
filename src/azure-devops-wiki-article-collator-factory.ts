@@ -9,6 +9,7 @@ import { WikiArticleCollatorFactoryOptions } from "./types/wiki-article-collator
 import { AzureDevOpsWikiReader } from "./azure-devops-wiki-reader";
 import { WikiPage } from "./types/wiki-page";
 import { Constants } from "./constants";
+import { WikiArticleCollatorOptions } from "./types/wiki-article-collator-options";
 
 export class AzureDevOpsWikiArticleCollatorFactory
   implements DocumentCollatorFactory
@@ -16,20 +17,14 @@ export class AzureDevOpsWikiArticleCollatorFactory
   private readonly baseUrl: string | undefined;
   private readonly logger: Logger;
   private readonly token: string | undefined;
-  private readonly wikiIdentifier: string | undefined;
-  private readonly organization: string | undefined;
-  private readonly project: string | undefined;
-  private readonly titleSuffix: string | undefined;
+  private readonly wikis: WikiArticleCollatorOptions[] | undefined;
   public readonly type: string = Constants.DocumentType;
 
   private constructor(options: WikiArticleCollatorFactoryOptions) {
     this.baseUrl = options.baseUrl;
     this.token = options.token;
     this.logger = options.logger;
-    this.wikiIdentifier = options.wikiIdentifier;
-    this.organization = options.organization;
-    this.project = options.project;
-    this.titleSuffix = options.titleSuffix;
+    this.wikis = options.wikis;
   }
 
   static fromConfig(
@@ -42,26 +37,24 @@ export class AzureDevOpsWikiArticleCollatorFactory
     const token = config.getOptionalString(
       `${Constants.ConfigSectionName}.token`
     );
-    const wikiIdentifier = config.getOptionalString(
-      `${Constants.ConfigSectionName}.wikiIdentifier`
+    const wikisConfig = config.getOptionalConfigArray(
+      `${Constants.ConfigSectionName}.wikis`
     );
-    const organization = config.getOptionalString(
-      `${Constants.ConfigSectionName}.organization`
-    );
-    const project = config.getOptionalString(
-      `${Constants.ConfigSectionName}.project`
-    );
-    const titleSuffix = config.getOptionalString(
-      `${Constants.ConfigSectionName}.titleSuffix`
-    );
+
+    const wikis = wikisConfig?.map((wikiConfig) => {
+      return {
+        organization: wikiConfig.getOptionalString("organization"),
+        project: wikiConfig.getOptionalString("project"),
+        wikiIdentifier: wikiConfig.getOptionalString("wikiIdentifier"),
+        titleSuffix: wikiConfig.getOptionalString("titleSuffix"),
+      };
+    });
+
     return new AzureDevOpsWikiArticleCollatorFactory({
       ...options,
       baseUrl,
       token,
-      wikiIdentifier,
-      organization,
-      project,
-      titleSuffix,
+      wikis,
     });
   }
 
@@ -70,6 +63,28 @@ export class AzureDevOpsWikiArticleCollatorFactory
   }
 
   async *execute(): AsyncGenerator<IndexableDocument> {
+    if (this.validateNecessaryConfigurationOptions() === false) {
+      return;
+    }
+
+    const articles: (IndexableDocument | null)[] =
+      await this.readAllArticlesFromAllWikis();
+
+    for (const article of articles) {
+      if (article === null || article === undefined) {
+        continue;
+      }
+      yield article;
+    }
+
+    this.logger.info("Done indexing Azure DevOps wiki documents");
+  }
+
+  private validateNecessaryConfigurationOptions(): boolean {
+    if (this.wikis === undefined) {
+      this.logger.error(`No wikis configured in your app-config.yaml`);
+      return false;
+    }
     if (
       [
         this.validateSingleConfigurationOptionExists(
@@ -80,33 +95,60 @@ export class AzureDevOpsWikiArticleCollatorFactory
           this.token,
           `${Constants.ConfigSectionName}.token`
         ),
-        this.validateSingleConfigurationOptionExists(
-          this.wikiIdentifier,
-          `${Constants.ConfigSectionName}.wikiIdentifier`
-        ),
-        this.validateSingleConfigurationOptionExists(
-          this.organization,
-          `${Constants.ConfigSectionName}.organization`
-        ),
-        this.validateSingleConfigurationOptionExists(
-          this.project,
-          `${Constants.ConfigSectionName}.project`
-        ),
+        ...this.wikis.flatMap((wiki, index) => {
+          return [
+            this.validateSingleConfigurationOptionExists(
+              wiki.organization,
+              `${Constants.ConfigSectionName}.wikis[${index}].organization`
+            ),
+            this.validateSingleConfigurationOptionExists(
+              wiki.project,
+              `${Constants.ConfigSectionName}.wikis[${index}].project`
+            ),
+            this.validateSingleConfigurationOptionExists(
+              wiki.wikiIdentifier,
+              `${Constants.ConfigSectionName}.wikis[${index}].wikiIdentifier`
+            ),
+          ];
+        }),
       ].some((result) => !result)
     ) {
-      return;
+      return false;
     }
 
-    const wikiReader = new AzureDevOpsWikiReader(
-      this.baseUrl as string,
-      this.organization as string,
-      this.project as string,
-      this.token as string,
-      this.wikiIdentifier as string,
-      this.logger
+    return true;
+  }
+
+  private async readAllArticlesFromAllWikis(): Promise<
+    (IndexableDocument | null)[]
+  > {
+    const promises: Promise<(IndexableDocument | null)[]>[] = [];
+    this.wikis?.forEach((wiki) =>
+      promises.push(this.readAllArticlesFromSingleWiki(wiki))
     );
 
-    const listOfAllArticles = await wikiReader.getListOfAllWikiPages();
+    const settledPromises = await Promise.allSettled(promises);
+    const fulfilledPromises = settledPromises.filter(
+      (p) => p.status === "fulfilled"
+    ) as PromiseFulfilledResult<(IndexableDocument | null)[]>[];
+    const articles = fulfilledPromises.flatMap((p) => p.value);
+    return articles;
+  }
+
+  private async readAllArticlesFromSingleWiki(
+    wiki: WikiArticleCollatorOptions
+  ): Promise<(IndexableDocument | null)[]> {
+    const reader = new AzureDevOpsWikiReader(
+      this.baseUrl as string,
+      wiki.organization as string,
+      wiki.project as string,
+      this.token as string,
+      wiki.wikiIdentifier as string,
+      this.logger,
+      wiki.titleSuffix
+    );
+
+    const listOfAllArticles = await reader.getListOfAllWikiPages();
     this.logger.info(
       `Indexing ${listOfAllArticles.length} Azure DevOps wiki documents`
     );
@@ -120,29 +162,29 @@ export class AzureDevOpsWikiArticleCollatorFactory
         ...(await Promise.allSettled(
           listOfAllArticles
             .splice(0, batchSize)
-            .map((article) => wikiReader.readSingleWikiPage(article.id))
+            .map((article) => reader.readSingleWikiPage(article.id))
         ))
       );
     }
 
-    const articles = settledPromises.map((p) =>
-      p.status === "fulfilled" ? p.value : null
-    );
+    const result = settledPromises
+      .map((p) => {
+        const article = p.status === "fulfilled" ? p.value : null;
+        if (article === null || article === undefined) {
+          return null;
+        }
+        const splitPath = article?.path?.split("/");
+        const title = splitPath?.[splitPath.length - 1] ?? "Unknown Title";
 
-    for (const article of articles) {
-      if (article === null || article === undefined) {
-        continue;
-      }
-      const splitPath = article?.path?.split("/");
-      const title = splitPath?.[splitPath.length - 1] ?? "Unknown Title";
-      yield {
-        title: `${title}${this.titleSuffix ?? ""}`,
-        location: article?.remoteUrl ?? "",
-        text: article?.content ?? "",
-      };
-    }
+        return {
+          title: `${title}${reader.titleSuffix ?? ""}`,
+          location: article?.remoteUrl ?? "",
+          text: article?.content ?? "",
+        };
+      })
+      .filter((article) => article !== null);
 
-    this.logger.info("Done indexing Azure DevOps wiki documents");
+    return result;
   }
 
   private validateSingleConfigurationOptionExists(

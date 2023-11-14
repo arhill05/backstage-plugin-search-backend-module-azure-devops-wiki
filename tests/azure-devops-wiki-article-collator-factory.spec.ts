@@ -1,15 +1,11 @@
-import {
-  beforeEach, describe,
-  expect,
-  it,
-  vi
-} from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AzureDevOpsWikiArticleCollatorFactory } from "../src/azure-devops-wiki-article-collator-factory";
 import { ConfigReader } from "@backstage/config";
 
 import * as wikiReader from "../src/azure-devops-wiki-reader";
 import { getVoidLogger } from "@backstage/backend-common";
 import { IndexableDocument } from "@backstage/plugin-search-common";
+import { Logger } from "winston";
 
 const mockGetListOfAllWikiPages = vi
   .fn()
@@ -20,12 +16,23 @@ const mockReadSingleWikiPage = vi
 
 const wikiReaderSpy = vi
   .spyOn(wikiReader, "AzureDevOpsWikiReader")
-  .mockImplementation(() => {
-    return {
-      getListOfAllWikiPages: mockGetListOfAllWikiPages,
-      readSingleWikiPage: mockReadSingleWikiPage,
-    } as unknown as wikiReader.AzureDevOpsWikiReader;
-  });
+  .mockImplementation(
+    (
+      baseUrl: string,
+      organization: string,
+      project: string,
+      token: string,
+      wikiIdentifier: string,
+      logger: Logger,
+      titleSuffix?: string
+    ) => {
+      return {
+        getListOfAllWikiPages: mockGetListOfAllWikiPages,
+        readSingleWikiPage: mockReadSingleWikiPage,
+        titleSuffix,
+      } as unknown as wikiReader.AzureDevOpsWikiReader;
+    }
+  );
 
 describe("AzureDevOpsWikiArticleCollatorFactory", () => {
   let collator: AzureDevOpsWikiArticleCollatorFactory;
@@ -33,10 +40,14 @@ describe("AzureDevOpsWikiArticleCollatorFactory", () => {
   const defaultConfig = {
     azureDevOpsWikiCollator: {
       baseUrl: "a",
-      organization: "b",
-      project: "c",
       token: "e",
-      wikiIdentifier: "f",
+      wikis: [
+        {
+          organization: "b",
+          project: "c",
+          wikiIdentifier: "f",
+        },
+      ],
     },
   };
   beforeEach(() => {
@@ -170,7 +181,12 @@ describe("AzureDevOpsWikiArticleCollatorFactory", () => {
       new ConfigReader({
         azureDevOpsWikiCollator: {
           ...defaultConfig.azureDevOpsWikiCollator,
-          titleSuffix: " - suffix",
+          wikis: [
+            {
+              ...defaultConfig.azureDevOpsWikiCollator.wikis[0],
+              titleSuffix: " - suffix",
+            },
+          ],
         },
       }),
       {

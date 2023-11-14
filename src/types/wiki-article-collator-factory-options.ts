@@ -1,11 +1,9 @@
 import { Logger } from "winston";
+import { WikiArticleCollatorOptions } from "./wiki-article-collator-options";
 
 export type WikiArticleCollatorFactoryOptions = {
   baseUrl?: string;
   token?: string;
-  organization?: string;
-  project?: string;
-  wikiIdentifier?: string;
-  titleSuffix?: string;
+  wikis?: WikiArticleCollatorOptions[];
   logger: Logger;
 };
