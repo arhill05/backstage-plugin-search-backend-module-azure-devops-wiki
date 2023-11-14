@@ -8,15 +8,24 @@ import { buildBaseUrl } from "./utils/build-base-url";
 export class AzureDevOpsWikiReader {
   private readonly logger: Logger;
   private readonly axiosClient: AxiosInstance;
+  private readonly organization: string;
+  private readonly project: string;
+  private readonly wikiIdentifier: string;
+  public titleSuffix?: string;
   constructor(
     baseUrl: string,
     organization: string,
     project: string,
     token: string,
     wikiIdentifier: string,
-    logger: Logger
+    logger: Logger,
+    titleSuffix?: string
   ) {
     this.logger = logger;
+    this.titleSuffix = titleSuffix;
+    this.organization = organization;
+    this.project = project;
+    this.wikiIdentifier = wikiIdentifier;
 
     this.axiosClient = getAxiosClient(
       buildBaseUrl(baseUrl, organization, project, wikiIdentifier),
@@ -25,14 +34,16 @@ export class AzureDevOpsWikiReader {
   }
 
   getListOfAllWikiPages = async () => {
-    this.logger.info("Retrieving list of all Azure DevOps wiki pages");
+    this.logger.info(
+      `Retrieving list of all Azure DevOps wiki pages for wiki ${this.wikiIdentifier} in project ${this.project} in organization ${this.organization}`
+    );
 
     const wikiPageDetails: WikiPageDetail[] = [];
 
     let hasMorePages = true;
     let continuationToken: string | null = null;
 
-    this.logger.info("Reading ADO wiki pages");
+    this.logger.info(`Reading ADO wiki pages from wiki ${this.wikiIdentifier}`);
 
     while (hasMorePages) {
       const body: any = continuationToken !== null ? { continuationToken } : {};
@@ -48,7 +59,9 @@ export class AzureDevOpsWikiReader {
 
       if (!continuationToken) {
         hasMorePages = false;
-        this.logger.info(`Found ${wikiPageDetails.length} pages`);
+        this.logger.info(
+          `Found ${wikiPageDetails.length} pages in wiki ${this.wikiIdentifier} in project ${this.project} in organization ${this.organization}`
+        );
       }
     }
 
@@ -66,7 +79,7 @@ export class AzureDevOpsWikiReader {
       return rawPageContent;
     } catch (err) {
       this.logger.error(
-        `Problem reading page with id ${id} - ${err} - ${rawPageContent}`
+        `Problem reading page with in wiki ${this.wikiIdentifier} with id ${id} - ${err} - ${rawPageContent}`
       );
       throw err;
     }
