@@ -1,4 +1,4 @@
-import { Logger } from "winston";
+import { LoggerService } from "@backstage/backend-plugin-api";
 import { Config } from "@backstage/config";
 import { Readable } from "stream";
 import {
@@ -15,7 +15,7 @@ export class AzureDevOpsWikiArticleCollatorFactory
   implements DocumentCollatorFactory
 {
   private readonly baseUrl: string | undefined;
-  private readonly logger: Logger;
+  private readonly logger: LoggerService;
   private readonly token: string | undefined;
   private readonly wikis: WikiArticleCollatorOptions[] | undefined;
   public readonly type: string = Constants.DocumentType;
@@ -39,7 +39,7 @@ export class AzureDevOpsWikiArticleCollatorFactory
     );
     const wikisConfig = config.getOptionalConfigArray(
       `${Constants.ConfigSectionName}.wikis`
-    );
+    ) ?? [config.getConfig(`${Constants.ConfigSectionName}`)];
 
     const wikis = wikisConfig?.map((wikiConfig) => {
       return {
