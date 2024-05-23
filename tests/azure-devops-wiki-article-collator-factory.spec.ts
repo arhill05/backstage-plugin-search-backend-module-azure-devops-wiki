@@ -5,7 +5,7 @@ import { ConfigReader } from "@backstage/config";
 import * as wikiReader from "../src/azure-devops-wiki-reader";
 import { getVoidLogger } from "@backstage/backend-common";
 import { IndexableDocument } from "@backstage/plugin-search-common";
-import { Logger } from "winston";
+import { LoggerService } from "@backstage/backend-plugin-api";
 
 const mockGetListOfAllWikiPages = vi
   .fn()
@@ -23,7 +23,7 @@ const wikiReaderSpy = vi
       project: string,
       token: string,
       wikiIdentifier: string,
-      logger: Logger,
+      logger: LoggerService,
       titleSuffix?: string
     ) => {
       return {
@@ -63,16 +63,16 @@ describe("AzureDevOpsWikiArticleCollatorFactory", () => {
   });
 
   it("should log errors when config values are missing", async () => {
-    collator = AzureDevOpsWikiArticleCollatorFactory.fromConfig(
-      new ConfigReader({}),
-      {
-        logger,
-      }
-    );
-    const spy = vi.spyOn(logger, "error");
-    await collator.execute().next();
+    const test = () => {
+      collator = AzureDevOpsWikiArticleCollatorFactory.fromConfig(
+        new ConfigReader({}),
+        {
+          logger,
+        }
+      );
+    };
 
-    expect(spy).toHaveBeenCalled();
+    expect(test).toThrowError();
   });
 
   it("should return something on a happy path", async () => {
