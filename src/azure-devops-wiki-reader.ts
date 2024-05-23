@@ -1,12 +1,12 @@
-import { Logger } from "winston";
 import { WikiPageDetail } from "./types/wiki-page-detail";
 import { WikiPage } from "./types/wiki-page";
 import { AxiosInstance } from "axios";
 import { getAxiosClient } from "./utils/axios-client";
 import { buildBaseUrl } from "./utils/build-base-url";
+import { LoggerService } from "@backstage/backend-plugin-api"
 
 export class AzureDevOpsWikiReader {
-  private readonly logger: Logger;
+  private readonly logger: LoggerService;
   private readonly axiosClient: AxiosInstance;
   private readonly organization: string;
   private readonly project: string;
@@ -18,7 +18,7 @@ export class AzureDevOpsWikiReader {
     project: string,
     token: string,
     wikiIdentifier: string,
-    logger: Logger,
+    logger: LoggerService,
     titleSuffix?: string
   ) {
     this.logger = logger;

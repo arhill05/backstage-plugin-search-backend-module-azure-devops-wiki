@@ -6,6 +6,7 @@ This plugin provides the pieces necessary to have Backstage index articles and e
 
 - You must have an Azure DevOps project with a wiki present
 - You must be using the Backstage Search feature
+- You must be using the new backend system in Backstage
 
 ## Getting started
 
@@ -20,6 +21,7 @@ Add the necessary configuration for this plugin to your app-config.yaml:
 ```yaml
 # app-config.yaml
 
+# multiple wikis
 azureDevOpsWikiCollator:
   baseUrl: https://my-azure-instance.com  # The URL of your Azure DevOps instance. Required
   token: ${AZURE_TOKEN}                   # The PAT used to authenticate to the Azure DevOps REST API. Required.
@@ -32,22 +34,27 @@ azureDevOpsWikiCollator:
       organization: MyOrganization
       project: MyProject
       titleSuffix: " - Suffix 2"
+
+# or a single wiki
+azureDevOpsWikiCollator:
+  baseUrl: https://my-azure-instance.com  # The URL of your Azure DevOps instance. Required
+  token: ${AZURE_TOKEN}                   # The PAT used to authenticate to the Azure DevOps REST API. Required.
+  wikiIdentifier: Wiki-Identifier.wiki    # The identifier of the wiki. This can be found by looking at the URL of the wiki in ADO. It is typically something like '{nameOfWiki}.wiki'. Required.
+  organization: MyOrganization            # The name of the organization the wiki is contained in. Required.
+  project: MyProject                      # The name of the project the wiki is contained in. Required.
+  titleSuffix: " - My Suffix"             # A string to append to the title of articles to make them easier to identify as search results from the wiki. Optional
 ```
 
-Configure the search plugin to use the pieces from this package:
+Add the plugin to your backend. This uses the new backend system.
 
 ```typescript
-// packages/backend/src/plugins/search.ts
-import { AzureDevOpsWikiArticleCollatorFactory } from '@mdude2314/backstage-plugin-search-backend-module-azure-devops-wiki';
+// packages/backend/src/index.ts
+import { searchModuleAzureDevopsWikiCollator } from '@mdude2314/backstage-plugin-search-backend-module-azure-devops-wiki';
 
 ...
 
-indexBuilder.addCollator({
-  schedule,
-  factory: AzureDevOpsWikiArticleCollatorFactory.fromConfig(env.config, {
-    logger: env.logger,
-  }),
-});
+backend.add(searchModuleAzureDevopsWikiCollator());
+
 ```
 
 From here, the collator will begin indexing all articles in the wiki into search. Once the indexing is done, the articles and their content will be searchable via the Backstage search feature.
