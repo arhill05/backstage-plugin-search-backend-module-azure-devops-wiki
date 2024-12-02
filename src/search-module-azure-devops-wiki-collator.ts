@@ -3,6 +3,7 @@ import {
   createBackendModule,
 } from "@backstage/backend-plugin-api";
 import { searchIndexRegistryExtensionPoint } from "@backstage/plugin-search-backend-node/alpha";
+import { ScmIntegrations } from '@backstage/integration'; // prettier-ignore
 
 import { AzureDevOpsWikiArticleCollatorFactory } from "./azure-devops-wiki-article-collator-factory";
 
@@ -18,8 +19,11 @@ export const searchModuleAzureDevopsWikiCollator = createBackendModule({
         indexRegistry: searchIndexRegistryExtensionPoint,
       },
       async init({ config, scheduler, logger, indexRegistry }) {
+        const integrations = ScmIntegrations.fromConfig(config);
+
+        const runIntervalFrequency = config.getNumber("azureDevOpsWikiCollator.taskRunIntervalInMinutes") || 15;
         const defaultSchedule = {
-          frequency: { minutes: 10 },
+          frequency: { minutes: runIntervalFrequency as number },
           timeout: { minutes: 15 },
           initialDelay: { seconds: 3 },
         };
@@ -28,6 +32,7 @@ export const searchModuleAzureDevopsWikiCollator = createBackendModule({
           schedule: scheduler.createScheduledTaskRunner(defaultSchedule),
           factory: AzureDevOpsWikiArticleCollatorFactory.fromConfig(config, {
             logger,
+            integrations,
           }),
         });
       },

@@ -10,21 +10,23 @@ import { AzureDevOpsWikiReader } from "./azure-devops-wiki-reader";
 import { WikiPage } from "./types/wiki-page";
 import { Constants } from "./constants";
 import { WikiArticleCollatorOptions } from "./types/wiki-article-collator-options";
+import { DefaultAzureDevOpsCredentialsProvider, ScmIntegrations } from '@backstage/integration'; // prettier-ignore
 
 export class AzureDevOpsWikiArticleCollatorFactory
-  implements DocumentCollatorFactory
-{
+  implements DocumentCollatorFactory {
   private readonly baseUrl: string | undefined;
   private readonly logger: LoggerService;
   private readonly token: string | undefined;
   private readonly wikis: WikiArticleCollatorOptions[] | undefined;
   public readonly type: string = Constants.DocumentType;
+  private readonly integrations: ScmIntegrations
 
   private constructor(options: WikiArticleCollatorFactoryOptions) {
     this.baseUrl = options.baseUrl;
     this.token = options.token;
     this.logger = options.logger;
     this.wikis = options.wikis;
+    this.integrations = options.integrations
   }
 
   static fromConfig(
@@ -36,10 +38,12 @@ export class AzureDevOpsWikiArticleCollatorFactory
     );
     const token = config.getOptionalString(
       `${Constants.ConfigSectionName}.token`
-    );
+    ) || '';
     const wikisConfig = config.getOptionalConfigArray(
       `${Constants.ConfigSectionName}.wikis`
     ) ?? [config.getConfig(`${Constants.ConfigSectionName}`)];
+
+    const integrations = ScmIntegrations.fromConfig(config);
 
     const wikis = wikisConfig?.map((wikiConfig) => {
       return {
@@ -55,6 +59,7 @@ export class AzureDevOpsWikiArticleCollatorFactory
       baseUrl,
       token,
       wikis,
+      integrations,
     });
   }
 
@@ -122,10 +127,29 @@ export class AzureDevOpsWikiArticleCollatorFactory
   private async readAllArticlesFromAllWikis(): Promise<
     (IndexableDocument | null)[]
   > {
+    const credentialProvider =
+      DefaultAzureDevOpsCredentialsProvider.fromIntegrations(this.integrations);
+
+    let wikisWithToken = [];
     const promises: Promise<(IndexableDocument | null)[]>[] = [];
-    this.wikis?.forEach((wiki) =>
-      promises.push(this.readAllArticlesFromSingleWiki(wiki))
-    );
+
+    if (!this.token) {
+      for (let wiki of this.wikis as WikiArticleCollatorOptions[]) {
+        const credentialsData = await credentialProvider.getCredentials({
+          url: `https://dev.azure.com/${wiki.organization}`
+        })
+        wiki.token = credentialsData?.token
+        wikisWithToken.push(wiki);
+      }
+
+      wikisWithToken?.forEach((wiki) =>
+        promises.push(this.readAllArticlesFromSingleWiki(wiki))
+      );
+    } else {
+      this.wikis?.forEach((wiki) =>
+        promises.push(this.readAllArticlesFromSingleWiki(wiki))
+      );
+    }
 
     const settledPromises = await Promise.allSettled(promises);
     const fulfilledPromises = settledPromises.filter(
@@ -138,11 +162,12 @@ export class AzureDevOpsWikiArticleCollatorFactory
   private async readAllArticlesFromSingleWiki(
     wiki: WikiArticleCollatorOptions
   ): Promise<(IndexableDocument | null)[]> {
+    const token = wiki.token || this.token;
     const reader = new AzureDevOpsWikiReader(
       this.baseUrl as string,
       wiki.organization as string,
       wiki.project as string,
-      this.token as string,
+      token as string,
       wiki.wikiIdentifier as string,
       this.logger,
       wiki.titleSuffix

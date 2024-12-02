@@ -14,6 +14,7 @@
   },
   "license": "Apache-2.0",
   "dependencies": {
+    "@azure/identity": "^4.5.0",
     "@backstage/plugin-search-backend-node": "^1.2.23",
     "@backstage/plugin-search-common": "^1.2.11",
     "axios": "^1.4.0",
